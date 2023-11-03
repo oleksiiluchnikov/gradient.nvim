@@ -10,7 +10,7 @@ Install the plugin with your preferred package manager:
 
 ```lua
 return {
-  'oleksiiluchnikov/gradient'
+  'oleksiiluchnikov/gradient.nvim',
 }
 ```
 
