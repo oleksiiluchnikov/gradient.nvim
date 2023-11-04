@@ -1,6 +1,19 @@
-# gradient
+# 🌈 Gradient
 
-Util to get gradient between colors in hex format in Neovim.
+**Gradient** is a versatile utility designed to generate smooth color transitions
+in hexadecimal format within Neovim. This plugin allows users to create
+seamless color progressions between **specified colors** or **highlight groups**,
+offering an array of hex color values that represent a smooth gradient.
+
+## Features
+
+- **Generate gradients from:**
+  - hex colors or hl_group names with as many steps and stops as you want
+  - hl_group background to foreground
+  
+- **Pick color from gradient:**
+  - Color from position in gradient (0 to 1).
+  - Middle color between two colors.
 
 ## 📦 Installation
 
@@ -16,21 +29,45 @@ return {
 
 ## 🚀 Usage
 
+Gradient offers a variety of functions to generate and manipulate gradients.
+
 ### API
 
+Generate gradient from hex colors or hl_group names:
 ```lua
 ---@param steps number @ number of steps
----@param ... string @ colors in hex format
----@return string[]
-function gradient.get(steps, ...)
+---@param ... string @ Hex colors values or hl_group names
+---@return string[] @ An array of hex color values strings representing the gradient
+function gradient.from_stops(steps, ...)
 ```
 
+Generate gradient from hl_group background to foreground:
 ```lua
----@param position number @ position in gradient
----@param ... string @ colors in hex format
----@return string
-function gradient.get_color(position, ...)
+---@param steps number @ number of steps
+---@param hl_group_name string @ hl_group name
+---@return string[] @ An array of hex color values strings representing the gradient
+function gradient.from_hl_bg_to_fg(steps, hl_group_name)
 ```
+
+Pick color from position in gradient:
+```lua
+---@param position number @ Position in gradient (0 to 1). e.g. 0.42
+---@param ... string @ Hex colors values or hl_group names
+---@return string @ Hex color value string representing the color at the position
+function gradient.pick_color_from_pos(position, ...)
+```
+
+Pick middle color between two colors:
+```lua
+---@param steps number @ number of steps
+---@param start_color string @ Hex color value or hl_group name
+---@param end_color string @ Hex color value or hl_group name
+---@return string @ Hex color value string representing the color at the 0.5 position
+function gradient.pick_color_between(steps, start_color, end_color)
+```
+
+Explore a variety of usage examples to effortlessly implement and manipulate
+gradients within your Neovim environment.
 
 ### Example
 
@@ -38,23 +75,25 @@ function gradient.get_color(position, ...)
 local gradient = require('gradient')
 
 ---@type string[]
-local colors = gradient.get(7, '#000000', '#ff0000', '#ffffff')
--- { 
---   "#000000",
---   "#490000",
---   "#920000",
---   "#DB0000",
---   "#FF2424",
---   "#FF6D6D",
---   "#FFB6B6",
---   "#FFFFFF"
--- }
+local from_hex = gradient.from_stops(7, '#000000', '#ff0000', '#ffffff')
+assert(from_hex == { "#000000", "#490000", "#920000", "#DB0000", "#FF2525", "#FF6E6E", "#FFB7B7", "#FFFFFF" })
+
+---@type string[]
+local from_hex_and_hl = gradient.from_stops(7, '#000000', 'Error')
+assert(from_hex_and_hl == { "#000000", "#431E1C", "#863C38", "#C95A54", "#ED7F79", "#F3AAA6", "#F9D5D3", "#FFFFFF" })
+
+---@type string[]
+local from_hl_bg_to_fg = gradient.from_hl_bg_to_fg(7, 'Error')
+assert(from_hl_bg_to_fg == { "#0D0C17", "#2D1A22", "#4D272D", "#6C3438", "#8C4242", "#AB4F4D", "#CB5C58", "#EA6962" })
 
 ---@type string
-local color_by_position = gradient.get_color(0.6, '#000000', '#ff0000')
--- "#990000"
-```
+local from_position = gradient.pick_color_from_pos(0.6, '#000000', '#ff0000')
+assert(from_position == "#990000")
 
+---@type string
+local color_between = gradient.pick_color_between(7, '#000000', '#ffffff')
+assert(color_between == "#808080")
+```
 
 ## License
 
