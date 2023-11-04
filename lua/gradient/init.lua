@@ -152,11 +152,10 @@ function HighlightGroup:new(obj, hl_group_name)
 
 	local complete_group = get_complete_group(obj)
 
-
 	if complete_group and complete_group.fg then
-    if not complete_group.bg then
-      complete_group.bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
-    end
+		if not complete_group.bg then
+			complete_group.bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
+		end
 		obj = {
 			bg = DecimalColor:new({}, complete_group.bg),
 			fg = DecimalColor:new({}, complete_group.fg),
@@ -206,6 +205,44 @@ local function hex_colors_from_vararg(args)
 	end
 
 	return colors
+end
+
+--- Generate a gradient table of colors
+--- @param steps number @ Number of steps in the gradient
+--- @param hex_colors HexColor[] @ Colors in hex format
+--- @return string[] @ Table of colors
+local function generate_colors(steps, hex_colors)
+	---@type string[] -- Color hex values e.g. {"#000000", "#808080", "#ffffff"}
+	local generated_gradient = {}
+
+	if #hex_colors == 1 then
+		for _ = 1, steps do
+			table.insert(generated_gradient, hex_colors[1]:to_string())
+		end
+		return generated_gradient
+	end
+
+	local step_size = 1 / (#hex_colors - 1)
+
+	for i = 0, steps do
+		local position = i / steps
+		local start_index = math.floor(position / step_size)
+		local end_index = start_index + 1
+
+		if end_index >= #hex_colors then
+			table.insert(generated_gradient, hex_colors[#hex_colors]:to_string())
+		else
+			local start_color = hex_colors[start_index + 1]
+			local end_color = hex_colors[end_index + 1]
+			local position_in_step = (position - start_index * step_size) / step_size
+
+			---@type string
+			local color = gradient.pick_color_between(position_in_step, start_color, end_color):to_string()
+			table.insert(generated_gradient, color)
+		end
+	end
+
+	return generated_gradient
 end
 
 ---Get a color between two colors
@@ -298,51 +335,13 @@ function gradient.from_stops(steps, ...)
 	end
 
 	---@type string[] -- Color hex values e.g. {"#000000", "#808080", "#ffffff"}
-	return gradient.generate(steps, hex_colors)
-end
-
---- Generate a gradient table of colors
---- @param steps number @ Number of steps in the gradient
---- @param hex_colors HexColor[] @ Colors in hex format
---- @return table @ Table of colors
-function gradient.generate(steps, hex_colors)
-	---@type string[] -- Color hex values e.g. {"#000000", "#808080", "#ffffff"}
-	local generated_gradient = {}
-
-	if #hex_colors == 1 then
-		for _ = 1, steps do
-			table.insert(generated_gradient, hex_colors[1]:to_string())
-		end
-		return generated_gradient
-	end
-
-	local step_size = 1 / (#hex_colors - 1)
-
-	for i = 0, steps do
-		local position = i / steps
-		local start_index = math.floor(position / step_size)
-		local end_index = start_index + 1
-
-		if end_index >= #hex_colors then
-			table.insert(generated_gradient, hex_colors[#hex_colors]:to_string())
-		else
-			local start_color = hex_colors[start_index + 1]
-			local end_color = hex_colors[end_index + 1]
-			local position_in_step = (position - start_index * step_size) / step_size
-
-			---@type string
-			local color = gradient.pick_color_between(position_in_step, start_color, end_color):to_string()
-			table.insert(generated_gradient, color)
-		end
-	end
-
-	return generated_gradient
+	return generate_colors(steps, hex_colors)
 end
 
 --- Generate a gradient table from background to foreground
 ---@param steps number @ Number of steps in the gradient
 ---@param highlight_group_name string @ The highlight group to use
----@return table|nil @ Table of colors
+---@return string[]|nil @ Table of colors
 function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 	local hl_group = HighlightGroup:new({}, highlight_group_name)
 	if hl_group == nil then
@@ -352,7 +351,5 @@ function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 
 	return gradient.from_stops(steps, hl_group.bg:to_hex(), hl_group.fg:to_hex())
 end
-
-P(gradient.from_stops(7, "#000000", "Error"))
 
 return gradient
