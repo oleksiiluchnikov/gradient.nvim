@@ -50,7 +50,7 @@ function gradient.from_hl_bg_to_fg(steps, hl_group_name)
 Pick color from position in gradient:
 ```lua
 ---@param position number @ Position in gradient (0 to 1). e.g. 0.42
----@varargs string @ Hex colors values or hl_group names
+---@param ... string @ Hex colors values or hl_group names
 ---@return string @ Hex color value string representing the color at the position
 function gradient.pick_color_from_pos(position, ...)
 ```
@@ -69,7 +69,7 @@ assert(from_hex == { "#000000", "#490000", "#920000", "#DB0000", "#FF2525", "#FF
 
 ---@type string[]
 local from_hex_and_hl = gradient.from_stops(7, '#000000', 'Error')
-assert(from_hex_and_hl == { "#000000", "#431E1C", "#863C38", "#C95A54", "#ED7F79", "#F3AAA6", "#F9D5D3", "#FFFFFF" })
+assert(from_hex_and_hl == { "#000000", "#220F0E", "#431E1C", "#652D2A", "#863C38", "#A84B46", "#C95A54", "#EA6962" })
 
 ---@type string[]
 local from_hl_bg_to_fg = gradient.from_hl_bg_to_fg(7, 'Error')

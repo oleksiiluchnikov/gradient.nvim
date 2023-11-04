@@ -152,7 +152,11 @@ function HighlightGroup:new(obj, hl_group_name)
 
 	local complete_group = get_complete_group(obj)
 
-	if complete_group and complete_group.bg and complete_group.fg then
+
+	if complete_group and complete_group.fg then
+    if not complete_group.bg then
+      complete_group.bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
+    end
 		obj = {
 			bg = DecimalColor:new({}, complete_group.bg),
 			fg = DecimalColor:new({}, complete_group.fg),
@@ -348,5 +352,7 @@ function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 
 	return gradient.from_stops(steps, hl_group.bg:to_hex(), hl_group.fg:to_hex())
 end
+
+P(gradient.from_stops(7, "#000000", "Error"))
 
 return gradient
