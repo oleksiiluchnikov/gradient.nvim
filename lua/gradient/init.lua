@@ -66,7 +66,7 @@ end
 --- Example: #000000 -> 0, #FFFFFF -> 16777215
 ---@return number @ The decimal representation of the hexadecimal color
 function HexColor:to_decimal()
-  return tonumber(string.format("%s%s%s", self.red:to_string(), self.green:to_string(), self.blue:to_string()), 16)
+	return tonumber(string.format("%s%s%s", self.red:to_string(), self.green:to_string(), self.blue:to_string()), 16)
 end
 
 --- Gets the RGB components as an array.
@@ -131,39 +131,77 @@ local HighlightGroup = {}
 --- @param hl_group_name string @ The highlight group name
 --- @return HighlightGroup|nil
 function HighlightGroup:new(obj, hl_group_name)
-    obj = obj or {}
+	obj = obj or {}
 
-    if hl_group_name then
-      obj = vim.api.nvim_get_hl(0, { name = hl_group_name })
-    end
+	if hl_group_name then
+		obj = vim.api.nvim_get_hl(0, { name = hl_group_name })
+	end
 
-    local function get_complete_group(group)
-        if group.link then
-            local linked_group = vim.api.nvim_get_hl(0, { name = group.link })
-            if not linked_group.link and linked_group.bg and linked_group.fg then
-                return linked_group -- Found the linked group with bg and fg colors
-            else
-                return get_complete_group(linked_group) -- Recursive call for further linked groups
-            end
-        else
-            return group -- No more linked groups, return the current group
-        end
-    end
+	local function get_complete_group(group)
+		if group.link then
+			local linked_group = vim.api.nvim_get_hl(0, { name = group.link })
+			if not linked_group.link and linked_group.bg and linked_group.fg then
+				return linked_group -- Found the linked group with bg and fg colors
+			else
+				return get_complete_group(linked_group) -- Recursive call for further linked groups
+			end
+		else
+			return group -- No more linked groups, return the current group
+		end
+	end
 
-    local complete_group = get_complete_group(obj)
+	local complete_group = get_complete_group(obj)
 
-    if complete_group and complete_group.bg and complete_group.fg then
-        obj = {
-            bg = DecimalColor:new({}, complete_group.bg),
-            fg = DecimalColor:new({}, complete_group.fg)
-        }
-        setmetatable(obj, self)
-        self.__index = self
-        return obj
-    else
-        error("No complete linked highlight group found for: " .. hl_group_name)
-        return
-    end
+	if complete_group and complete_group.bg and complete_group.fg then
+		obj = {
+			bg = DecimalColor:new({}, complete_group.bg),
+			fg = DecimalColor:new({}, complete_group.fg),
+		}
+		setmetatable(obj, self)
+		self.__index = self
+		return obj
+	else
+		error("No complete linked highlight group found for: " .. hl_group_name)
+		return
+	end
+end
+
+---Handle the varargs input to determine the type of input
+---@param args table @ The varargs input
+---@return HexColor[]|nil @ The hexadecimal colors
+local function hex_colors_from_vararg(args)
+	local colors = {}
+
+	local function is_hex_color(str)
+		return str:match("^#[0-9A-Fa-f]+$")
+	end
+
+	local function is_hl_group_name(str)
+		return str:match("%S+$")
+	end
+
+	for _, arg in ipairs(args) do
+		if type(arg) == "string" then -- it is hex color or highlight group name
+			if is_hex_color(arg) then -- it is hex color
+				table.insert(colors, HexColor:new({}, arg))
+			elseif is_hl_group_name(arg) then -- it is highlight group
+				local hl_group = HighlightGroup:new({}, arg)
+				if hl_group == nil then
+					error("Highlight group not found: " .. arg)
+					return
+				end
+
+				table.insert(colors, hl_group.fg:to_hex())
+			else
+				error("Invalid argument: " .. arg)
+				return
+			end
+		elseif type(arg) == "table" then
+			table.insert(colors, arg)
+		end
+	end
+
+	return colors
 end
 
 ---Get a color between two colors
@@ -181,17 +219,17 @@ function gradient.pick_color_between(position, start_color, end_color)
 
 	---validate the colors
 	if not start_color:is_valid() then
-    error("Invalid start color: " .. start_color:to_string())
+		error("Invalid start color: " .. start_color:to_string())
 		return
 	end
 
 	if not end_color:is_valid() then
-    error("Invalid end color: " .. end_color:to_string())
+		error("Invalid end color: " .. end_color:to_string())
 		return
 	end
 
 	if position < 0 or position > 1 then
-    error("Invalid position: " .. position .. " Should be between 0 and 1")
+		error("Invalid position: " .. position .. " Should be between 0 and 1")
 		return
 	end
 
@@ -204,21 +242,20 @@ end
 
 ---Get a color between multiple colors
 ---@param position number @ The position between the two colors (0-1)
----@vararg HexColor|string @ The colors
+---@param ... HexColor|string @ The colors
 ---@return string|nil @ The hexadecimal color
 function gradient.pick_color_from_pos(position, ...)
-
 	if position < 0 or position > 1 then
-    error("Invalid position: " .. position .. " Should be between 0 and 1")
+		error("Invalid position: " .. position .. " Should be between 0 and 1")
 		return
 	end
 
 	---Create a table of colors
 	---@type HexColor[]|nil
-	local hex_colors = gradient.handle_varargs({ ... })
-  if not hex_colors then
-    error("Invalid arguments" .. vim.inspect({ ... }))
-  end
+	local hex_colors = hex_colors_from_vararg({ ... })
+	if not hex_colors then
+		error("Invalid arguments" .. vim.inspect({ ... }))
+	end
 
 	if #hex_colors == 1 then
 		return hex_colors[1]:to_string()
@@ -251,10 +288,10 @@ end
 function gradient.from_stops(steps, ...)
 	local args = { ... }
 
-  local hex_colors = gradient.handle_varargs(args)
-  if not hex_colors then
-    error("Invalid arguments" .. vim.inspect(args))
-  end
+	local hex_colors = hex_colors_from_vararg(args)
+	if not hex_colors then
+		error("Invalid arguments" .. vim.inspect(args))
+	end
 
 	---@type string[] -- Color hex values e.g. {"#000000", "#808080", "#ffffff"}
 	return gradient.generate(steps, hex_colors)
@@ -305,63 +342,11 @@ end
 function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 	local hl_group = HighlightGroup:new({}, highlight_group_name)
 	if hl_group == nil then
-    error("Highlight group not found: " .. highlight_group_name)
+		error("Highlight group not found: " .. highlight_group_name)
 		return
 	end
 
 	return gradient.from_stops(steps, hl_group.bg:to_hex(), hl_group.fg:to_hex())
-end
-
----Handle the varargs input to determine the type of input
----@param args table @ The varargs input
----@return table|nil @ The table of colors
-function gradient.handle_varargs(args)
-	local colors = {}
-
-	local function is_hex_color(str)
-		return str:match("^#[0-9A-Fa-f]+$")
-	end
-
-	local function is_hl_group_name(str)
-		return str:match("%S+$")
-	end
-
-	for _, arg in ipairs(args) do
-		if type(arg) == "string" then -- it is hex color or highlight group name
-			if is_hex_color(arg) then -- it is hex color
-				table.insert(colors, HexColor:new({}, arg))
-			elseif is_hl_group_name(arg) then -- it is highlight group
-				local hl_group = HighlightGroup:new({}, arg)
-				if hl_group == nil then
-          error("Highlight group not found: " .. arg)
-					return
-				end
-
-				table.insert(colors, hl_group.fg:to_hex())
-			else
-        error("Invalid argument: " .. arg)
-				return
-			end
-		elseif type(arg) == "table" then
-			table.insert(colors, arg)
-		end
-	end
-
-	return colors
-end
-
-
-function gradient.test_all_methods()
-	local hex_color = HexColor:new({}, "#000000")
-	assert(hex_color:to_string() == "#000000", "HexColor:to_string() failed")
-	assert(hex_color:to_decimal() == 0, "HexColor:to_decimal() failed")
-	assert(hex_color:to_rgb()[1] == 0, "HexColor:to_rgb() failed")
-	assert(hex_color:is_valid() == true, "HexColor:is_valid() failed")
-
-	local decimal_color = DecimalColor:new({}, 0)
-	assert(decimal_color:to_string() == "0,0,0", "DecimalColor:to_string() failed")
-	assert(decimal_color:to_hex():to_string() == "#000000", "DecimalColor:to_hex() failed")
-	assert(decimal_color:to_rgb()[1] == 0, "DecimalColor:to_rgb() failed")
 end
 
 return gradient
