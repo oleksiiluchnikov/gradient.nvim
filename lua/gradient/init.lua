@@ -46,9 +46,9 @@ function HexColor:new(obj, str)
 		if str:len() == 7 then
 			str = str .. "FF"
 		end
-		obj.red = HexValue:new({ value = tonumber(string.sub(str, 2, 3), 16) })
-		obj.green = HexValue:new({ value = tonumber(string.sub(str, 4, 5), 16) })
-		obj.blue = HexValue:new({ value = tonumber(string.sub(str, 6, 7), 16) })
+		obj.red = HexValue:new({ value = tonumber(str:sub(2, 3), 16) })
+		obj.green = HexValue:new({ value = tonumber(str:sub(4, 5), 16) })
+		obj.blue = HexValue:new({ value = tonumber(str:sub(6, 7), 16) })
 	end
 
 	setmetatable(obj, self)
@@ -66,7 +66,7 @@ end
 --- Example: #000000 -> 0, #FFFFFF -> 16777215
 ---@return number @ The decimal representation of the hexadecimal color
 function HexColor:to_decimal()
-	return tonumber(string.format("%s%s%s", self.red:to_string(), self.green:to_string(), self.blue:to_string()), 16)
+	return tonumber(("%s%s%s"):format(self.red:to_string(), self.green:to_string(), self.blue:to_string()), 16)
 end
 
 --- Gets the RGB components as an array.
@@ -82,14 +82,14 @@ function HexColor:is_valid()
 end
 
 ---@class DecimalColor
----@field red number
----@field green number
----@field blue number
+---@field red integer
+---@field green integer
+---@field blue integer
 local DecimalColor = {}
 
 --- Constructor for DecimalColor.
 --- @param obj table @ Optional object to initialize
---- @param decimal_color number @ The decimal color
+--- @param decimal_color? number @ The decimal color
 function DecimalColor:new(obj, decimal_color)
 	obj = obj or {}
 	if decimal_color then
@@ -106,13 +106,13 @@ end
 --- Converts the DecimalColor to a string format.
 --- @return string @ The string representation of the decimal color
 function DecimalColor:to_string()
-	return string.format("%d,%d,%d", self.red, self.green, self.blue)
+	return ("%d,%d,%d"):format(self.red, self.green, self.blue)
 end
 
 --- Converts the DecimalColor to its hexadecimal representation.
 --- @return HexColor @ The hexadecimal representation of the decimal color
 function DecimalColor:to_hex()
-	return HexColor:new({}, string.format("#%02X%02X%02X", self.red, self.green, self.blue))
+	return HexColor:new({}, ("#%02X%02X%02X"):format(self.red, self.green, self.blue))
 end
 
 --- Gets the RGB components as an array.
@@ -128,7 +128,7 @@ local HighlightGroup = {}
 
 --- Constructor for HighlightGroup.
 --- @param obj table @ Optional object to initialize
---- @param hl_group_name string @ The highlight group name
+--- @param hl_group_name? string @ The highlight group name
 --- @return HighlightGroup|nil
 function HighlightGroup:new(obj, hl_group_name)
 	obj = obj or {}
@@ -138,35 +138,34 @@ function HighlightGroup:new(obj, hl_group_name)
 	end
 
 	local function get_complete_group(group)
-		if group.link then
-			local linked_group = vim.api.nvim_get_hl(0, { name = group.link })
-			if not linked_group.link and linked_group.bg and linked_group.fg then
-				return linked_group -- Found the linked group with bg and fg colors
-			else
-				return get_complete_group(linked_group) -- Recursive call for further linked groups
-			end
-		else
+		if not group.link then
 			return group -- No more linked groups, return the current group
 		end
+
+		local linked_group = vim.api.nvim_get_hl(0, { name = group.link })
+		if not linked_group.link and linked_group.bg and linked_group.fg then
+			return linked_group -- Found the linked group with bg and fg colors
+		end
+
+		return get_complete_group(linked_group) -- Recursive call for further linked groups
 	end
 
 	local complete_group = get_complete_group(obj)
 
-	if complete_group and complete_group.fg then
-		if not complete_group.bg then
-			complete_group.bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
-		end
-		obj = {
-			bg = DecimalColor:new({}, complete_group.bg),
-			fg = DecimalColor:new({}, complete_group.fg),
-		}
-		setmetatable(obj, self)
-		self.__index = self
-		return obj
-	else
+	if not (complete_group and complete_group.fg) then
 		error("No complete linked highlight group found for: " .. hl_group_name)
-		return
 	end
+
+	if not complete_group.bg then
+		complete_group.bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
+	end
+	obj = {
+		bg = DecimalColor:new({}, complete_group.bg),
+		fg = DecimalColor:new({}, complete_group.fg),
+	}
+	setmetatable(obj, self)
+	self.__index = self
+	return obj
 end
 
 ---Handle the varargs input to determine the type of input
@@ -191,13 +190,11 @@ local function hex_colors_from_vararg(args)
 				local hl_group = HighlightGroup:new({}, arg)
 				if hl_group == nil then
 					error("Highlight group not found: " .. arg)
-					return
 				end
 
 				table.insert(colors, hl_group.fg:to_hex())
 			else
 				error("Invalid argument: " .. arg)
-				return
 			end
 		elseif type(arg) == "table" then
 			table.insert(colors, arg)
@@ -261,34 +258,30 @@ function gradient.pick_color_between(position, start_color, end_color)
 	---validate the colors
 	if not start_color:is_valid() then
 		error("Invalid start color: " .. start_color:to_string())
-		return
 	end
 
 	if not end_color:is_valid() then
 		error("Invalid end color: " .. end_color:to_string())
-		return
 	end
 
 	if position < 0 or position > 1 then
 		error("Invalid position: " .. position .. " Should be between 0 and 1")
-		return
 	end
 
 	local red = math.ceil(start_color.red.value + (end_color.red.value - start_color.red.value) * position)
 	local green = math.ceil(start_color.green.value + (end_color.green.value - start_color.green.value) * position)
 	local blue = math.ceil(start_color.blue.value + (end_color.blue.value - start_color.blue.value) * position)
 
-	return HexColor:new({}, string.format("#%02X%02X%02X", red, green, blue))
+	return HexColor:new({}, ("#%02X%02X%02X"):format(red, green, blue))
 end
 
 ---Get a color between multiple colors
 ---@param position number @ The position between the two colors (0-1)
 ---@param ... HexColor|string @ The colors
----@return string|nil @ The hexadecimal color
+---@return string? @ The hexadecimal color
 function gradient.pick_color_from_pos(position, ...)
 	if position < 0 or position > 1 then
 		error("Invalid position: " .. position .. " Should be between 0 and 1")
-		return
 	end
 
 	---Create a table of colors
@@ -325,7 +318,7 @@ end
 --- Generate a gradient table of colors
 ---@param steps number @ Number of steps in the gradient
 ---@param ... HexColor|string @ Colors in hex format
----@return table|nil @ Table of colors
+---@return string[] @ List of colors
 function gradient.from_stops(steps, ...)
 	local args = { ... }
 
@@ -341,12 +334,11 @@ end
 --- Generate a gradient table from background to foreground
 ---@param steps number @ Number of steps in the gradient
 ---@param highlight_group_name string @ The highlight group to use
----@return string[]|nil @ Table of colors
+---@return string[] @ Table of colors
 function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 	local hl_group = HighlightGroup:new({}, highlight_group_name)
 	if hl_group == nil then
 		error("Highlight group not found: " .. highlight_group_name)
-		return
 	end
 
 	return gradient.from_stops(steps, hl_group.bg:to_hex(), hl_group.fg:to_hex())
