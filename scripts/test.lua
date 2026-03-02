@@ -76,6 +76,20 @@ test("from_stops: single color", function()
 	end
 end)
 
+test("from_stops: steps=1 with multiple colors (no division by zero)", function()
+	local colors, err = gradient.from_stops(1, "#000000", "#FFFFFF")
+	assert_eq(err, nil, "Should not error")
+	assert_eq(#colors, 1, "Should generate exactly 1 color")
+	assert_eq(colors[1], "#000000", "Should return first color stop")
+end)
+
+test("from_stops_eased: steps=1 with multiple colors (no division by zero)", function()
+	local colors, err = gradient.from_stops_eased(1, "ease-in", "#000000", "#FF0000", "#FFFFFF")
+	assert_eq(err, nil, "Should not error")
+	assert_eq(#colors, 1, "Should generate exactly 1 color")
+	assert_eq(colors[1], "#000000", "Should return first color stop")
+end)
+
 test("from_stops: invalid steps", function()
 	local colors, err = gradient.from_stops(0, "#000000", "#FFFFFF")
 	assert_eq(colors, nil)

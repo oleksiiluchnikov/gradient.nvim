@@ -1,4 +1,13 @@
 -- lua/gradient/init.lua
+
+---@alias EasingName "linear"|"ease-in"|"ease-out"|"ease-in-out"
+
+---@class GradientInfo
+---@field length integer @ Number of colors in the gradient
+---@field start string|nil @ First color hex string, or nil if empty
+---@field finish string|nil @ Last color hex string, or nil if empty
+---@field colors string[]|nil @ All color hex strings, or nil if empty
+
 local gradient = {}
 
 -- Constants
@@ -11,7 +20,7 @@ HexValue.__index = HexValue
 
 --- Constructor for HexValue.
 ---@param value number @ The color value (0-255)
----@return HexValue
+---@return HexValue|nil @ The HexValue object, or nil if value is not a number
 function HexValue:new(value)
 	if type(value) ~= "number" then
 		return nil
@@ -61,10 +70,18 @@ function HexColor:new(str)
 		return nil, "Failed to parse hex color components"
 	end
 
+	local red = HexValue:new(r)
+	local green = HexValue:new(g)
+	local blue = HexValue:new(b)
+
+	if not red or not green or not blue then
+		return nil, "Failed to create color components"
+	end
+
 	return setmetatable({
-		red = HexValue:new(r),
-		green = HexValue:new(g),
-		blue = HexValue:new(b),
+		red = red,
+		green = green,
+		blue = blue,
 	}, self)
 end
 
@@ -228,8 +245,8 @@ local function parse_color_arg(arg)
 			end
 			return hl_group.fg:to_hex()
 		end
-	elseif type(arg) == "table" and arg.to_string then
-		-- Already a color object
+	elseif type(arg) == "table" and getmetatable(arg) == HexColor then
+		-- Already a HexColor object
 		return arg
 	end
 
@@ -261,7 +278,8 @@ end
 ---@param start_color HexColor @ The starting color
 ---@param end_color HexColor @ The ending color
 ---@param position number @ Position between colors (0-1)
----@return HexColor @ The interpolated color
+---@return HexColor|nil @ The interpolated color, or nil on error
+---@return string|nil @ Error message if failed
 local function interpolate_colors(start_color, end_color, position)
 	-- Use proper rounding instead of ceil
 	local function round(x)
@@ -277,18 +295,23 @@ local function interpolate_colors(start_color, end_color, position)
 	g = math.max(0, math.min(255, g))
 	b = math.max(0, math.min(255, b))
 
-	return HexColor:new(string.format("#%02X%02X%02X", r, g, b))
+	local color, err = HexColor:new(string.format("#%02X%02X%02X", r, g, b))
+	if not color then
+		return nil, err or "Failed to create interpolated color"
+	end
+	return color
 end
 
 --- Generate gradient colors
----@param steps number @ Number of steps
----@param hex_colors HexColor[] @ Array of color stops
----@return string[] @ Array of hex color strings
+---@param steps integer @ Number of steps (must be >= 1)
+---@param hex_colors HexColor[] @ Array of color stops (non-empty)
+---@return string[]|nil @ Array of hex color strings, or nil on error
+---@return string|nil @ Error message if failed
 local function generate_colors(steps, hex_colors)
 	local generated_gradient = {}
 
-	-- Single color case
-	if #hex_colors == 1 then
+	-- Single color or single step case
+	if #hex_colors == 1 or steps == 1 then
 		for _ = 1, steps do
 			table.insert(generated_gradient, hex_colors[1]:to_string())
 		end
@@ -306,7 +329,10 @@ local function generate_colors(steps, hex_colors)
 		local start_color = hex_colors[segment_idx + 1]
 		local end_color = hex_colors[segment_idx + 2]
 
-		local color = interpolate_colors(start_color, end_color, segment_t)
+		local color, interp_err = interpolate_colors(start_color, end_color, segment_t)
+		if not color then
+			return nil, interp_err
+		end
 		table.insert(generated_gradient, color:to_string())
 	end
 
@@ -316,10 +342,11 @@ end
 -- Public API
 
 ---Get a color between two colors
----@param position number @ Position between colors (0-1)
----@param start_color HexColor|string @ The starting color
----@param end_color HexColor|string @ The ending color
----@return HexColor|nil, string|nil @ The interpolated color or nil and error message
+---@param position number @ Position between colors (0.0-1.0)
+---@param start_color HexColor|string @ The starting color (hex string or HexColor)
+---@param end_color HexColor|string @ The ending color (hex string or HexColor)
+---@return HexColor|nil @ The interpolated color, or nil on error
+---@return string|nil @ Error message if failed
 function gradient.pick_color_between(position, start_color, end_color)
 	-- Validate position
 	if type(position) ~= "number" or position < 0 or position > 1 then
@@ -356,9 +383,10 @@ function gradient.pick_color_between(position, start_color, end_color)
 end
 
 ---Get a color at position from multiple color stops
----@param position number @ Position in gradient (0-1)
+---@param position number @ Position in gradient (0.0-1.0)
 ---@param ... string|HexColor @ Color stops (hex strings or highlight group names)
----@return string|nil, string|nil @ Hex color string or nil and error message
+---@return string|nil @ Hex color string, or nil on error
+---@return string|nil @ Error message if failed
 function gradient.pick_color_from_pos(position, ...)
 	-- Validate position
 	if type(position) ~= "number" or position < 0 or position > 1 then
@@ -384,14 +412,18 @@ function gradient.pick_color_from_pos(position, ...)
 	local start_color = hex_colors[segment_idx + 1]
 	local end_color = hex_colors[segment_idx + 2]
 
-	local color = interpolate_colors(start_color, end_color, segment_t)
+	local color, interp_err = interpolate_colors(start_color, end_color, segment_t)
+	if not color then
+		return nil, interp_err
+	end
 	return color:to_string()
 end
 
 ---Generate a gradient from color stops
----@param steps number @ Number of colors to generate
+---@param steps integer @ Number of colors to generate (positive integer)
 ---@param ... string|HexColor @ Color stops (hex strings or highlight group names)
----@return string[]|nil, string|nil @ Array of hex color strings or nil and error message
+---@return string[]|nil @ Array of hex color strings, or nil on error
+---@return string|nil @ Error message if failed
 function gradient.from_stops(steps, ...)
 	-- Validate steps
 	if type(steps) ~= "number" or steps < 1 or steps ~= math.floor(steps) then
@@ -408,9 +440,10 @@ function gradient.from_stops(steps, ...)
 end
 
 ---Generate gradient from highlight group background to foreground
----@param steps number @ Number of colors to generate
+---@param steps integer @ Number of colors to generate (positive integer)
 ---@param highlight_group_name string @ Highlight group name
----@return string[]|nil, string|nil @ Array of hex color strings or nil and error message
+---@return string[]|nil @ Array of hex color strings, or nil on error
+---@return string|nil @ Error message if failed
 function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 	-- Validate steps
 	if type(steps) ~= "number" or steps < 1 or steps ~= math.floor(steps) then
@@ -430,8 +463,8 @@ function gradient.from_hl_bg_to_fg(steps, highlight_group_name)
 end
 
 ---Create a gradient with easing function
----@param steps number @ Number of colors to generate
----@param easing string|function @ Easing function name or custom function
+---@param steps integer @ Number of colors to generate (positive integer)
+---@param easing EasingName|fun(t: number): number @ Easing function name or custom function
 ---@param ... string|HexColor @ Color stops
 ---@return string[]|nil, string|nil @ Array of hex color strings or nil and error message
 function gradient.from_stops_eased(steps, easing, ...)
@@ -474,7 +507,7 @@ function gradient.from_stops_eased(steps, easing, ...)
 
 	local generated_gradient = {}
 
-	if #hex_colors == 1 then
+	if #hex_colors == 1 or steps == 1 then
 		for _ = 1, steps do
 			table.insert(generated_gradient, hex_colors[1]:to_string())
 		end
@@ -491,7 +524,10 @@ function gradient.from_stops_eased(steps, easing, ...)
 		local start_color = hex_colors[segment_idx + 1]
 		local end_color = hex_colors[segment_idx + 2]
 
-		local color = interpolate_colors(start_color, end_color, segment_t)
+		local color, interp_err = interpolate_colors(start_color, end_color, segment_t)
+		if not color then
+			return nil, interp_err
+		end
 		table.insert(generated_gradient, color:to_string())
 	end
 
@@ -510,8 +546,8 @@ function gradient.reverse(gradient_colors)
 end
 
 ---Get gradient info
----@param gradient_colors string[] @ Array of hex color strings
----@return table @ Gradient info (length, start, end, etc.)
+---@param gradient_colors string[]|nil @ Array of hex color strings
+---@return GradientInfo @ Gradient metadata
 function gradient.info(gradient_colors)
 	if not gradient_colors or #gradient_colors == 0 then
 		return { length = 0 }
