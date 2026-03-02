@@ -1,0 +1,73 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        neovim: [stable, nightly]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - name: Run tests
+        run: |
+          nvim --headless --clean -u NONE --cmd "set rtp+=." -l scripts/test.lua
+
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua and LuaLS
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+
+      - name: Install LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install lua-language-server
+        run: |
+          mkdir -p /tmp/luals
+          curl -L "https://github.com/LuaLS/lua-language-server/releases/latest/download/lua-language-server-3.13.6-linux-x64.tar.gz" \
+            | tar -xz -C /tmp/luals
+          echo "/tmp/luals/bin" >> "$GITHUB_PATH"
+
+      - name: Create LuaLS config
+        run: |
+          cat > .luarc.json << 'EOF'
+          {
+            "runtime": {
+              "version": "LuaJIT",
+              "path": ["lua/?.lua", "lua/?/init.lua"]
+            },
+            "workspace": {
+              "library": [],
+              "checkThirdParty": false
+            },
+            "diagnostics": {
+              "globals": ["vim"]
+            }
+          }
+          EOF
+
+      - name: Run lua-language-server --check
+        run: |
+          lua-language-server --check lua/ --checklevel Warning 2>&1 | tee /tmp/luals-output.txt
+          # Fail if there are errors (warnings are allowed for now)
+          if grep -q "^E:" /tmp/luals-output.txt 2>/dev/null; then
+            echo "LuaLS found errors"
+            exit 1
+          fi

@@ -41,7 +41,7 @@ local gradient = require('gradient')
 
 -- Generate 5 colors from black to white
 local colors = gradient.from_stops(5, '#000000', '#FFFFFF')
--- Result: { "#000000", "#404040", "#808080", "#BFBF3F", "#FFFFFF" }
+-- Result: { "#000000", "#404040", "#808080", "#BFBFBF", "#FFFFFF" }
 
 -- Generate 7 colors through red
 local colors = gradient.from_stops(7, '#000000', '#FF0000', '#FFFFFF')
